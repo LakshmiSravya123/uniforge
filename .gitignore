@@ -1,1 +1,19 @@
+# Dependencies
 frontend/node_modules/
+.venv/
+
+# Build artifacts
+build/
+dist/
+backend/build/
+backend/dist/
+__pycache__/
+*.pyc
+*.spec
+
+# Runtime files
+.github_token
+project.json
+
+# Editor/OS
+.DS_Store

@@ -1,20 +1,16 @@
-# Paste this into run_all.sh (overwrite the old one)
 #!/bin/bash
 set -e
 
-# Backend
 cd backend
 python app.py &
 BACK_PID=$!
 cd ..
 
-# UniForge recorder bridge (fixed import)
 cd uniforge
 python -m uniforge.server &
 FORGE_PID=$!
 cd ..
 
-# Frontend
 cd frontend
 npm run dev &
 FRONT_PID=$!
