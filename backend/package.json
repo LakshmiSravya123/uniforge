@@ -1,0 +1,35 @@
+{
+  "name": "uniforge-frontend",
+  "version": "0.0.1",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "dist": "electron-builder",
+    "dist-mac": "electron-builder --mac"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8",
+    "electron": "^latest",
+    "electron-builder": "^latest"
+  },
+  "build": {
+    "appId": "com.uniforge.app",
+    "productName": "UniForge",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "uniforge-backend"
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    }
+  }
+}

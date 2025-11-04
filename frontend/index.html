@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UniForge – Your Repetitive Task Killer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script type="module" src="/main.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f9f9fb;
+      color: #333;
+    }
+    h1 { text-align: center; color: #1a73e8; }
+    input, button, select { margin: 8px 4px; padding: 10px; font-size: 16px; }
+    button { background: #1a73e8; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #1557b0; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    ul { list-style: none; padding: 0; }
+    li { background: white; margin: 8px 0; padding: 12px; border-radius: 6px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .section { margin: 30px 0; padding: 20px; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+    .status { font-weight: bold; color: #d93025; margin-top: 10px; }
+    .tip { font-size: 0.9em; color: #666; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>UniForge</h1>
+  <p style="text-align:center; color:#666;">Automate the boring. Reclaim your time.</p>
+
+  <!-- Todo App -->
+  <div class="section">
+    <h2>Todo List (Live Demo)</h2>
+    <input id="new" placeholder="Add a new todo..." />
+    <button id="add">Add Todo</button>
+    <ul id="list"></ul>
+  </div>
+
+  <!-- Keystroke Recorder -->
+  <div class="section">
+    <h2>Keystroke Pattern Recorder</h2>
+    <button id="record">Record 3-sec Pattern</button>
+    <button id="replay" disabled>Replay Current</button>
+    <p class="status" id="status">Ready. Click "Record" then do your repetitive action.</p>
+  </div>
+
+  <!-- Save & Load Patterns -->
+  <div class="section">
+    <h2>Save & Reuse Patterns</h2>
+    <input id="patternName" placeholder="Name (e.g., copy-paste)" />
+    <button id="save">Save Current Pattern</button>
+    <br/>
+    <select id="loadPatterns" style="width:200px;">
+      <option>No saved patterns</option>
+    </select>
+    <button id="loadReplay">Replay Selected</button>
+  </div>
+
+  <!-- Voice Control -->
+  <div class="section">
+    <h2>Voice Command</h2>
+    <button id="voiceStart">Start Listening</button>
+    <p class="tip">Say: <strong>"UniForge, repeat last"</strong></p>
+    <p class="status" id="voiceStatus"></p>
+  </div>
+
+  <script type="module">
+    // === DOM Elements ===
+    const list = document.getElementById('list');
+    const input = document.getElementById('new');
+    const addBtn = document.getElementById('add');
+    const recordBtn = document.getElementById('record');
+    const replayBtn = document.getElementById('replay');
+    const status = document.getElementById('status');
+    const nameInput = document.getElementById('patternName');
+    const saveBtn = document.getElementById('save');
+    const loadSelect = document.getElementById('loadPatterns');
+    const loadReplayBtn = document.getElementById('loadReplay');
+    const voiceStartBtn = document.getElementById('voiceStart');
+    const voiceStatus = document.getElementById('voiceStatus');
+
+    // === Todo CRUD ===
+    async function refresh() {
+      try {
+        const res = await fetch('/api/todos');
+        const data = await res.json();
+        list.innerHTML = data.map(t => `<li>${t.text}</li>`).join('');
+      } catch (e) {
+        status.textContent = 'Backend not running?';
+      }
+    }
+
+    addBtn.onclick = async () => {
+      if (!input.value.trim()) return;
+      await fetch('/api/todos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: input.value })
+      });
+      input.value = '';
+      await refresh();
+    };
+
+    refresh();
+
+    // === Keystroke Recorder ===
+    recordBtn.onclick = async () => {
+      status.textContent = 'Recording 3 sec…';
+      try {
+        const res = await fetch('http://localhost:5001/record', { method: 'POST' });
+        const { pattern } = await res.json();
+        window.uniforgePattern = pattern;
+        status.textContent = `Recorded ${pattern.length} keystrokes`;
+        replayBtn.disabled = false;
+        loadSavedPatterns();
+      } catch (e) {
+        status.textContent = 'Recorder not running on port 5001';
+      }
+    };
+
+    replayBtn.onclick = async () => {
+      if (!window.uniforgePattern) return;
+      status.textContent = 'Replaying…';
+      await fetch('http://localhost:5001/replay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern: window.uniforgePattern })
+      });
+      status.textContent = 'Replay complete!';
+    };
+
+    // === Save & Load Patterns ===
+    function loadSavedPatterns() {
+      const saved = JSON.parse(localStorage.getItem('uniforgePatterns') || '{}');
+      loadSelect.innerHTML = '<option value="">No saved patterns</option>';
+      Object.keys(saved).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        loadSelect.appendChild(opt);
+      });
+    }
+
+    saveBtn.onclick = () => {
+      if (!window.uniforgePattern) {
+        status.textContent = 'Record a pattern first!';
+        return;
+      }
+      const name = nameInput.value.trim();
+      if (!name) {
+        status.textContent = 'Enter a name!';
+        return;
+      }
+      const saved = JSON.parse(localStorage.getItem('uniforgePatterns') || '{}');
+      saved[name] = window.uniforgePattern;
+      localStorage.setItem('uniforgePatterns', JSON.stringify(saved));
+      nameInput.value = '';
+      loadSavedPatterns();
+      status.textContent = `Saved as "${name}"`;
+    };
+
+    loadReplayBtn.onclick = () => {
+      const name = loadSelect.value;
+      if (!name) return;
+      const saved = JSON.parse(localStorage.getItem('uniforgePatterns') || '{}');
+      window.uniforgePattern = saved[name];
+      replayBtn.onclick();
+    };
+
+    loadSavedPatterns();
+
+    // === Voice Command: "UniForge, repeat last" ===
+    let recognition;
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript.toLowerCase().trim();
+        voiceStatus.textContent = `Heard: "${transcript}"`;
+        if (transcript.includes('uniforge') && transcript.includes('repeat')) {
+          if (window.uniforgePattern) {
+            replayBtn.onclick();
+            voiceStatus.textContent += ' → Replaying!';
+          } else {
+            voiceStatus.textContent = 'No pattern recorded yet!';
+          }
+        }
+      };
+
+      recognition.onerror = (event) => {
+        voiceStatus.textContent = `Voice error: ${event.error}`;
+      };
+
+      recognition.onend = () => {
+        voiceStatus.textContent = 'Voice stopped. Click to listen again.';
+      };
+
+      voiceStartBtn.onclick = () => {
+        recognition.start();
+        voiceStatus.textContent = 'Listening… Say "UniForge, repeat last"';
+      };
+    } else {
+      voiceStartBtn.disabled = true;
+      voiceStatus.textContent = 'Voice not supported in this browser.';
+    }
+  </script>
+</body>
+</html>
