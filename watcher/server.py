@@ -129,17 +129,33 @@ def record():
         duration = max(1.0, min(30.0, duration))
         
         pattern = []
+        recording_error = None
+        
         def on_key(event):
             # Capture key name (e.g., 'ctrl', 'c', 'enter')
             if event.event_type == keyboard.KEY_DOWN:
                 pattern.append(event.name)
         
-        # Hook keyboard events for specified duration
-        hook = keyboard.hook(on_key)
-        time.sleep(duration)
-        keyboard.unhook(hook)  # Clean up
+        # Try to hook keyboard events
+        try:
+            hook = keyboard.hook(on_key)
+            time.sleep(duration)
+            keyboard.unhook(hook)  # Clean up
+        except OSError as e:
+            recording_error = str(e)
+            if "administrator" in str(e).lower() or "permission" in str(e).lower():
+                recording_error = "Accessibility permissions required. On macOS: System Settings → Privacy & Security → Accessibility → Add Terminal/Python"
         
         print(f"Recorded pattern ({duration}s): {pattern}")  # Console output for debugging
+        
+        if not pattern and recording_error:
+            return jsonify({
+                'pattern': [], 
+                'duration': duration,
+                'warning': recording_error,
+                'help': 'Run: sudo python run.py OR grant accessibility permissions'
+            }), 200
+        
         return jsonify({'pattern': pattern, 'duration': duration}), 200
     except Exception as e:
         return jsonify({'error': f'Recording failed: {str(e)}'}), 500

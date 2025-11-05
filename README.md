@@ -6,7 +6,71 @@
 ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
 ![Status](https://img.shields.io/badge/status-production-brightgreen.svg)
 
-Automate repetitive desktop workflows by capturing keyboard patterns and replaying them through a unified desktop experience. UniForge is an intelligent automation tool that goes beyond simple macro recording - it offers server-side pattern storage, global hotkey triggers, AI-powered suggestions, and a beautiful modern UI.
+**🔥 Two Powerful Tools in One Repo:**
+
+1. **UniForge Automation** - Smart desktop workflow automation with keyboard recording/replay
+2. **CodeForge Generator** - Generate complete full-stack web apps from a single sentence
+
+---
+
+## 🔥 CodeForge - Full-Stack App Generator
+
+**Build production-ready web apps in under 5 minutes.**
+
+### What You Get
+
+Every CodeForge project includes:
+- ✅ **Complete Frontend** - Vite + React with modern UI
+- ✅ **Complete Backend** - Express API with CRUD operations
+- ✅ **Database Schema** - Supabase PostgreSQL ready to deploy
+- ✅ **Deploy Configs** - Netlify + Render 1-click deploy
+- ✅ **Documentation** - Full README with instructions
+- ✅ **Local Dev** - Works immediately with quickstart script
+
+### Quick Start
+
+```bash
+# Generate any app you can describe
+python codeforge.py "Your app idea here"
+
+# Examples:
+python codeforge.py "A todo list with categories"
+python codeforge.py "URL shortener with analytics"
+python codeforge.py "Recipe manager with search"
+
+# Run locally
+cd generated/your-app-name
+bash ../quickstart.sh
+```
+
+### What Gets Generated
+
+```
+your-app/
+├── frontend/          # Vite + React
+├── backend/           # Node.js + Express
+├── supabase/          # PostgreSQL schema
+├── netlify.toml       # Frontend deploy config
+├── render.yaml        # Backend deploy config
+└── README.md          # Full instructions
+```
+
+### Deploy in 5 Minutes
+
+1. **Supabase** (2 min) - Create project, run schema.sql
+2. **GitHub** (1 min) - Push your code
+3. **Render** (1 min) - Connect repo, add env vars
+4. **Netlify** (1 min) - Connect repo, set API URL
+
+**→ Live at https://your-app.netlify.app** 🎉
+
+**[📖 Full CodeForge Documentation](./CODEFORGE.md)**
+
+---
+
+## 🚀 UniForge Automation
+
+Automate repetitive desktop workflows by capturing keyboard patterns and replaying them through a unified desktop experience.
 
 ---
 

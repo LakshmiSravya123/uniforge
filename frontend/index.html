@@ -345,8 +345,20 @@
       
       if (data && data.pattern) {
         currentPattern = data.pattern;
-        setStatus(`Recorded ${currentPattern.length} keystrokes`);
-        document.getElementById('replay').disabled = false;
+        if (data.warning) {
+          // Permission issue detected
+          setStatus(`⚠️ ${data.warning}`, true);
+          if (data.help) {
+            setTimeout(() => {
+              alert(`Permission Required:\n\n${data.warning}\n\n${data.help}\n\nAfter granting permissions, please restart the server.`);
+            }, 100);
+          }
+        } else if (currentPattern.length > 0) {
+          setStatus(`Recorded ${currentPattern.length} keystrokes`);
+          document.getElementById('replay').disabled = false;
+        } else {
+          setStatus('No keystrokes captured - try typing during recording', true);
+        }
       } else {
         setStatus('Recording failed', true);
       }

@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "promptforge/frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    },
+    {
+      "src": "promptforge/backend/main.py",
+      "use": "@vercel/python"
+    }
+  ],
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/api/(.*)", "dest": "promptforge/backend/main.py" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
