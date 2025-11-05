@@ -201,15 +201,383 @@
   </div>
 
   <script type="module">
-    // [Same JS logic as before – recorder, voice, chat, drag, export, Cmd+K – unchanged for brevity]
-    // ... (Insert the full script from previous UniForge version here)
-    // Key addition: LLM Toggle
+    // ==================== STATE ====================
+    let currentPattern = [];
+    let savedPatterns = JSON.parse(localStorage.getItem('patterns') || '[]');
+    let todos = [];
+    let recording = false;
+
+    // ==================== API HELPERS ====================
+    const API_BASE = 'http://127.0.0.1:5001';
+    const BACKEND_BASE = 'http://127.0.0.1:5001';
+
+    async function fetchData(endpoint, options = {}) {
+      try {
+        const res = await fetch(endpoint, options);
+        return await res.json();
+      } catch (err) {
+        console.error(`API Error (${endpoint}):`, err);
+        return null;
+      }
+    }
+
+    // ==================== TODOS ====================
+    async function loadTodos() {
+      const data = await fetchData(`${BACKEND_BASE}/data`);
+      if (data) {
+        todos = data;
+        renderTodos();
+      }
+    }
+
+    function renderTodos() {
+      const list = document.getElementById('list');
+      list.innerHTML = todos.map((t, i) => 
+        `<li draggable="true" data-index="${i}">${t.title || t}</li>`
+      ).join('');
+      
+      // Add drag & drop
+      list.querySelectorAll('li').forEach(li => {
+        li.addEventListener('dragstart', handleDragStart);
+        li.addEventListener('dragover', handleDragOver);
+        li.addEventListener('drop', handleDrop);
+      });
+    }
+
+    async function saveTodos() {
+      await fetchData(`${BACKEND_BASE}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(todos)
+      });
+    }
+
+    document.getElementById('add').onclick = () => {
+      const input = document.getElementById('new');
+      const title = input.value.trim();
+      if (title) {
+        todos.push({ title, status: 'pending' });
+        input.value = '';
+        renderTodos();
+        saveTodos();
+      }
+    };
+
+    // ==================== DRAG & DROP ====================
+    let draggedIndex = null;
+
+    function handleDragStart(e) {
+      draggedIndex = parseInt(e.target.dataset.index);
+      e.target.style.opacity = '0.5';
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.target.style.borderTop = '2px solid var(--accent)';
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      e.target.style.borderTop = 'none';
+      const dropIndex = parseInt(e.target.dataset.index);
+      if (draggedIndex !== dropIndex) {
+        const [item] = todos.splice(draggedIndex, 1);
+        todos.splice(dropIndex, 0, item);
+        renderTodos();
+        saveTodos();
+      }
+    }
+
+    // ==================== RECORDER ====================
+    function setStatus(msg, isError = false) {
+      const status = document.getElementById('status');
+      status.textContent = msg;
+      status.style.color = isError ? '#ff6b6b' : 'var(--accent)';
+    }
+
+    document.getElementById('record').onclick = async () => {
+      if (recording) return;
+      recording = true;
+      document.getElementById('record').disabled = true;
+      document.getElementById('recording-indicator').style.display = 'flex';
+      
+      // Countdown
+      for (let i = 3; i > 0; i--) {
+        document.getElementById('countdown').textContent = i;
+        await new Promise(r => setTimeout(r, 1000));
+      }
+      
+      setStatus('Recording...');
+      const data = await fetchData(`${API_BASE}/record`, { method: 'POST' });
+      
+      if (data && data.pattern) {
+        currentPattern = data.pattern;
+        setStatus(`Recorded ${currentPattern.length} keystrokes`);
+        document.getElementById('replay').disabled = false;
+      } else {
+        setStatus('Recording failed', true);
+      }
+      
+      recording = false;
+      document.getElementById('record').disabled = false;
+      document.getElementById('recording-indicator').style.display = 'none';
+    };
+
+    document.getElementById('replay').onclick = async () => {
+      if (!currentPattern.length) {
+        setStatus('No pattern to replay', true);
+        return;
+      }
+      
+      setStatus('Replaying...');
+      await fetchData(`${API_BASE}/replay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern: currentPattern })
+      });
+      setStatus('Replay complete');
+    };
+
+    document.getElementById('save').onclick = () => {
+      const name = document.getElementById('patternName').value.trim();
+      if (!name) {
+        setStatus('Please enter a pattern name', true);
+        return;
+      }
+      if (!currentPattern.length) {
+        setStatus('No pattern to save', true);
+        return;
+      }
+      
+      savedPatterns.push({ name, pattern: currentPattern });
+      localStorage.setItem('patterns', JSON.stringify(savedPatterns));
+      document.getElementById('patternName').value = '';
+      renderPatterns();
+      setStatus(`Saved pattern: ${name}`);
+    };
+
+    function renderPatterns() {
+      const list = document.getElementById('pattern-list');
+      list.innerHTML = savedPatterns.map((p, i) => 
+        `<li onclick="loadPattern(${i})">${p.name} (${p.pattern.length} keys)</li>`
+      ).join('');
+    }
+
+    window.loadPattern = (index) => {
+      currentPattern = savedPatterns[index].pattern;
+      document.getElementById('replay').disabled = false;
+      setStatus(`Loaded: ${savedPatterns[index].name}`);
+    };
+
+    document.getElementById('loadReplay').onclick = () => {
+      if (currentPattern.length) {
+        document.getElementById('replay').click();
+      }
+    };
+
+    // ==================== EXPORT / IMPORT ====================
+    document.getElementById('export').onclick = () => {
+      const data = JSON.stringify({ patterns: savedPatterns, todos }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'uniforge-export.json';
+      a.click();
+      setStatus('Exported flows');
+    };
+
+    document.getElementById('importBtn').onclick = () => {
+      document.getElementById('import').click();
+    };
+
+    document.getElementById('import').onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        try {
+          const data = JSON.parse(evt.target.result);
+          if (data.patterns) {
+            savedPatterns = data.patterns;
+            localStorage.setItem('patterns', JSON.stringify(savedPatterns));
+            renderPatterns();
+          }
+          if (data.todos) {
+            todos = data.todos;
+            renderTodos();
+            saveTodos();
+          }
+          setStatus('Imported successfully');
+        } catch (err) {
+          setStatus('Import failed: ' + err.message, true);
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    // ==================== VOICE ====================
+    let recognition = null;
+    if ('webkitSpeechRecognition' in window) {
+      recognition = new webkitSpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = false;
+      
+      recognition.onresult = (e) => {
+        const transcript = e.results[e.results.length - 1][0].transcript.toLowerCase();
+        document.getElementById('voiceStatus').textContent = `Heard: ${transcript}`;
+        
+        if (transcript.includes('repeat') || transcript.includes('replay')) {
+          document.getElementById('replay').click();
+        }
+      };
+      
+      recognition.onerror = (e) => {
+        document.getElementById('voiceStatus').textContent = `Error: ${e.error}`;
+      };
+    }
+
+    document.getElementById('voiceStart').onclick = () => {
+      if (recognition) {
+        recognition.start();
+        document.getElementById('voiceStatus').textContent = 'Listening...';
+      } else {
+        document.getElementById('voiceStatus').textContent = 'Speech not supported';
+      }
+    };
+
+    // ==================== CHAT ====================
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+
+    function addMessage(text, isUser = false) {
+      const div = document.createElement('div');
+      div.className = `message ${isUser ? 'user' : 'ai'}`;
+      div.textContent = text;
+      chatMessages.appendChild(div);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    document.getElementById('send-chat').onclick = () => {
+      const msg = chatInput.value.trim();
+      if (!msg) return;
+      
+      addMessage(msg, true);
+      chatInput.value = '';
+      
+      // Simple AI suggestions
+      setTimeout(() => {
+        const suggestions = [
+          'Try saving your pattern with Cmd+S',
+          'You can drag todos to reorder them',
+          'Use voice command "repeat flow" to replay',
+          'Export your flows for backup'
+        ];
+        addMessage(suggestions[Math.floor(Math.random() * suggestions.length)]);
+      }, 500);
+    };
+
+    chatInput.onkeypress = (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('send-chat').click();
+      }
+    };
+
+    // ==================== LLM TOGGLE ====================
     document.getElementById('llmToggle').onclick = () => {
       const useGroq = localStorage.getItem('useGroq') !== 'true';
       localStorage.setItem('useGroq', useGroq);
-      document.getElementById('llmToggle').textContent = useGroq ? 'Groq Active' : 'Ollama Flow';
-      location.reload();  // Reconnect backend
+      document.getElementById('llmToggle').textContent = useGroq ? 'Switch to Ollama Flow' : 'Switch to Groq Flow';
     };
+
+    // Set initial text
+    const useGroq = localStorage.getItem('useGroq') === 'true';
+    document.getElementById('llmToggle').textContent = useGroq ? 'Switch to Ollama Flow' : 'Switch to Groq Flow';
+
+    // ==================== COMMAND PALETTE (Cmd+K) ====================
+    const commandPalette = document.getElementById('command-palette');
+    const commandInput = document.getElementById('command-input');
+    const commandList = document.getElementById('command-list');
+
+    const commands = [
+      { name: 'Record Flow', action: () => document.getElementById('record').click() },
+      { name: 'Replay Flow', action: () => document.getElementById('replay').click() },
+      { name: 'Save Pattern', action: () => document.getElementById('save').click() },
+      { name: 'Export Flows', action: () => document.getElementById('export').click() },
+      { name: 'Import Flows', action: () => document.getElementById('importBtn').click() },
+      { name: 'Start Voice', action: () => document.getElementById('voiceStart').click() }
+    ];
+
+    let selectedCommandIndex = 0;
+
+    document.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        commandPalette.style.display = 'flex';
+        commandInput.focus();
+        renderCommands('');
+      }
+      
+      if (commandPalette.style.display === 'flex') {
+        if (e.key === 'Escape') {
+          commandPalette.style.display = 'none';
+        } else if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          selectedCommandIndex = Math.min(selectedCommandIndex + 1, commands.length - 1);
+          updateCommandSelection();
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          selectedCommandIndex = Math.max(selectedCommandIndex - 1, 0);
+          updateCommandSelection();
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          executeSelectedCommand();
+        }
+      }
+    });
+
+    commandInput.oninput = (e) => {
+      renderCommands(e.target.value);
+    };
+
+    function renderCommands(filter) {
+      const filtered = commands.filter(c => 
+        c.name.toLowerCase().includes(filter.toLowerCase())
+      );
+      commandList.innerHTML = filtered.map((c, i) => 
+        `<div class="command-item ${i === selectedCommandIndex ? 'selected' : ''}" onclick="executeCommand(${commands.indexOf(c)})">${c.name}</div>`
+      ).join('');
+    }
+
+    function updateCommandSelection() {
+      const items = commandList.querySelectorAll('.command-item');
+      items.forEach((item, i) => {
+        item.classList.toggle('selected', i === selectedCommandIndex);
+      });
+    }
+
+    function executeSelectedCommand() {
+      const filtered = commands.filter(c => 
+        c.name.toLowerCase().includes(commandInput.value.toLowerCase())
+      );
+      if (filtered[selectedCommandIndex]) {
+        filtered[selectedCommandIndex].action();
+        commandPalette.style.display = 'none';
+        commandInput.value = '';
+      }
+    }
+
+    window.executeCommand = (index) => {
+      commands[index].action();
+      commandPalette.style.display = 'none';
+      commandInput.value = '';
+    };
+
+    // ==================== INIT ====================
+    loadTodos();
+    renderPatterns();
+    setStatus('Ready to flow.');
   </script>
 </body>
 </html>
