@@ -3,6 +3,9 @@ import subprocess
 import threading
 import time
 import os
+import sys
+
+PYTHON = sys.executable or "python"
 
 def run_command(cmd, name, cwd=None, port=None):
     env = os.environ.copy()
@@ -31,7 +34,7 @@ import watcher.auth  # This starts the server
 # === 2. Start Flask on PORT 5001 (avoid AirPlay) ===
 threading.Thread(
     target=run_command,
-    args=(["python", "backend/main.py"], "Flask", None, 5001),
+    args=([PYTHON, "backend/main.py"], "Flask", None, 5001),
     daemon=True
 ).start()
 time.sleep(3)
@@ -39,7 +42,7 @@ time.sleep(3)
 # === 3. Start Watcher ===
 threading.Thread(
     target=run_command,
-    args=(["python", "watcher/watcher.py"], "Watcher"),
+    args=([PYTHON, "watcher/watcher.py"], "Watcher"),
     daemon=True
 ).start()
 time.sleep(2)
