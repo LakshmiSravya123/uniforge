@@ -33,15 +33,24 @@ def save_json(path, data):
 # ==================== DATA ENDPOINTS ====================
 @app.route('/data')
 def get_data():
-    if os.path.exists(DATA_FILE):
-        with open(DATA_FILE) as f:
-            return jsonify(json.load(f))
-    return jsonify([])
+    try:
+        data = load_json(DATA_FILE, [])
+        return jsonify(data), 200
+    except Exception as e:
+        return jsonify({'error': f'Failed to load data: {str(e)}'}), 500
 
 @app.route('/save', methods=['POST'])
 def save_data():
-    ok = save_json(DATA_FILE, request.json)
-    return jsonify({'status': 'saved' if ok else 'error'})
+    try:
+        if not request.json:
+            return jsonify({'error': 'No data provided'}), 400
+        ok = save_json(DATA_FILE, request.json)
+        if ok:
+            return jsonify({'status': 'saved'}), 200
+        else:
+            return jsonify({'error': 'Failed to save data'}), 500
+    except Exception as e:
+        return jsonify({'error': f'Save failed: {str(e)}'}), 500
 
 # ==================== PATTERNS (Server storage) ====================
 def load_patterns():
@@ -109,44 +118,64 @@ def patterns_delete(name):
 # ==================== RECORDER ENDPOINTS ====================
 @app.route('/record', methods=['POST'])
 def record():
-    pattern = []
-    def on_key(event):
-        # Capture key name (e.g., 'ctrl', 'c', 'enter')
-        if event.event_type == keyboard.KEY_DOWN:
-            pattern.append(event.name)
-    
-    # Hook keyboard events for 3 seconds
-    hook = keyboard.hook(on_key)
-    time.sleep(3)
-    keyboard.unhook(hook)  # Clean up
-    
-    print(f"Recorded pattern: {pattern}")  # Console output for debugging
-    return jsonify({'pattern': pattern})
+    try:
+        # Get duration from query param or request body, default to 3 seconds
+        duration = request.args.get('duration', type=float)
+        if duration is None:
+            body = request.get_json(force=True, silent=True) or {}
+            duration = body.get('duration', 3.0)
+        
+        # Validate duration (1-30 seconds)
+        duration = max(1.0, min(30.0, duration))
+        
+        pattern = []
+        def on_key(event):
+            # Capture key name (e.g., 'ctrl', 'c', 'enter')
+            if event.event_type == keyboard.KEY_DOWN:
+                pattern.append(event.name)
+        
+        # Hook keyboard events for specified duration
+        hook = keyboard.hook(on_key)
+        time.sleep(duration)
+        keyboard.unhook(hook)  # Clean up
+        
+        print(f"Recorded pattern ({duration}s): {pattern}")  # Console output for debugging
+        return jsonify({'pattern': pattern, 'duration': duration}), 200
+    except Exception as e:
+        return jsonify({'error': f'Recording failed: {str(e)}'}), 500
 
 @app.route('/replay', methods=['POST'])
 def replay():
-    data = request.get_json()
-    pattern = data.get('pattern', [])
-    if not pattern:
-        return jsonify({'error': 'No pattern provided'}), 400
-    
-    print(f"Replaying pattern: {pattern}")  # Console output
-    for key in pattern:
-        try:
-            keyboard.press_and_release(key)
-            time.sleep(0.02)  # 20ms delay for natural feel
-        except Exception as e:
-            print(f"Error replaying {key}: {e}")
-    
-    return jsonify({'status': 'replayed'})
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        pattern = data.get('pattern', [])
+        if not pattern:
+            return jsonify({'error': 'No pattern provided'}), 400
+        
+        print(f"Replaying pattern: {pattern}")  # Console output
+        for key in pattern:
+            try:
+                keyboard.press_and_release(key)
+                time.sleep(0.02)  # 20ms delay for natural feel
+            except Exception as e:
+                print(f"Error replaying {key}: {e}")
+        
+        return jsonify({'status': 'replayed'}), 200
+    except Exception as e:
+        return jsonify({'error': f'Replay failed: {str(e)}'}), 500
 
 @app.route('/replay/name/<name>', methods=['POST', 'GET'])
 def replay_by_name(name):
-    patterns = load_patterns()
-    for p in patterns:
-        if p.get('name') == name:
-            return replay_pattern(p.get('pattern', []))
-    return jsonify({'error': 'Pattern not found'}), 404
+    try:
+        patterns = load_patterns()
+        for p in patterns:
+            if p.get('name') == name:
+                return replay_pattern(p.get('pattern', []))
+        return jsonify({'error': 'Pattern not found'}), 404
+    except Exception as e:
+        return jsonify({'error': f'Replay by name failed: {str(e)}'}), 500
 
 def replay_pattern(pattern):
     if not pattern:

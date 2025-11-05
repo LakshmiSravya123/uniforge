@@ -1,5 +1,11 @@
 # UniForge
 
+![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)
+![License](https://img.shields.io/badge/license-MIT-green.svg)
+![Python](https://img.shields.io/badge/python-3.10+-blue.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey.svg)
+![Status](https://img.shields.io/badge/status-production-brightgreen.svg)
+
 Automate repetitive desktop workflows by capturing keyboard patterns and replaying them through a unified desktop experience. UniForge is an intelligent automation tool that goes beyond simple macro recording - it offers server-side pattern storage, global hotkey triggers, AI-powered suggestions, and a beautiful modern UI.
 
 ---
@@ -7,7 +13,7 @@ Automate repetitive desktop workflows by capturing keyboard patterns and replayi
 ## 🚀 Features
 
 ### Core Automation
-1. **Smart Keystroke Recorder** - Capture 3-second keyboard patterns with precision
+1. **Smart Keystroke Recorder** - Capture keyboard patterns with configurable duration (1-30s)
 2. **Instant Replay** - Replay patterns on-demand or via global hotkeys
 3. **Server-Side Storage** - Patterns saved to backend (no localStorage limits)
 4. **Global Hotkeys** - Trigger flows system-wide (e.g., `ctrl+shift+p`)
