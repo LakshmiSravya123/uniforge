@@ -166,6 +166,7 @@
         <span id="countdown">3</span> Flow Seconds
       </div>
       <input id="patternName" placeholder="Flow Name (e.g., copy-paste)" />
+      <input id="patternHotkey" placeholder="Hotkey (optional, e.g., ctrl+shift+p)" style="font-size: 12px;" />
       <button id="save" style="width: 100%;">Save Flow</button>
       <button id="export" style="width: 100%; background: var(--accent-hover);">Export Flows</button>
       <input type="file" id="import" accept=".json" style="display: none;" />
@@ -203,7 +204,7 @@
   <script type="module">
     // ==================== STATE ====================
     let currentPattern = [];
-    let savedPatterns = JSON.parse(localStorage.getItem('patterns') || '[]');
+    let savedPatterns = []; // Now loaded from backend
     let todos = [];
     let recording = false;
 
@@ -218,6 +219,38 @@
       } catch (err) {
         console.error(`API Error (${endpoint}):`, err);
         return null;
+      }
+    }
+
+    // ==================== PATTERNS API ====================
+    async function loadPatterns() {
+      const data = await fetchData(`${BACKEND_BASE}/patterns`);
+      if (data) {
+        savedPatterns = data;
+        renderPatterns();
+      }
+    }
+
+    async function savePattern(name, pattern, hotkey = '') {
+      const data = await fetchData(`${BACKEND_BASE}/patterns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, pattern, hotkey })
+      });
+      if (data && data.patterns) {
+        savedPatterns = data.patterns;
+        renderPatterns();
+      }
+      return data;
+    }
+
+    async function deletePattern(name) {
+      const data = await fetchData(`${BACKEND_BASE}/patterns/${encodeURIComponent(name)}`, {
+        method: 'DELETE'
+      });
+      if (data && data.patterns) {
+        savedPatterns = data.patterns;
+        renderPatterns();
       }
     }
 
@@ -338,7 +371,7 @@
       setStatus('Replay complete');
     };
 
-    document.getElementById('save').onclick = () => {
+    document.getElementById('save').onclick = async () => {
       const name = document.getElementById('patternName').value.trim();
       if (!name) {
         setStatus('Please enter a pattern name', true);
@@ -349,24 +382,38 @@
         return;
       }
       
-      savedPatterns.push({ name, pattern: currentPattern });
-      localStorage.setItem('patterns', JSON.stringify(savedPatterns));
-      document.getElementById('patternName').value = '';
-      renderPatterns();
-      setStatus(`Saved pattern: ${name}`);
+      const hotkey = document.getElementById('patternHotkey')?.value.trim() || '';
+      const result = await savePattern(name, currentPattern, hotkey);
+      if (result && result.status === 'ok') {
+        document.getElementById('patternName').value = '';
+        if (document.getElementById('patternHotkey')) {
+          document.getElementById('patternHotkey').value = '';
+        }
+        setStatus(`Saved pattern: ${name}${hotkey ? ' [' + hotkey + ']' : ''}`);
+      } else {
+        setStatus('Save failed', true);
+      }
     };
 
     function renderPatterns() {
       const list = document.getElementById('pattern-list');
-      list.innerHTML = savedPatterns.map((p, i) => 
-        `<li onclick="loadPattern(${i})">${p.name} (${p.pattern.length} keys)</li>`
-      ).join('');
+      list.innerHTML = savedPatterns.map((p, i) => {
+        const hotkey = p.hotkey ? ` <span style="color: var(--accent); font-size: 10px;">[${p.hotkey}]</span>` : '';
+        return `<li onclick="loadPattern(${i})">${p.name} (${p.pattern.length} keys)${hotkey}</li>`;
+      }).join('');
     }
 
     window.loadPattern = (index) => {
       currentPattern = savedPatterns[index].pattern;
       document.getElementById('replay').disabled = false;
       setStatus(`Loaded: ${savedPatterns[index].name}`);
+    };
+
+    window.deletePattern = async (name) => {
+      if (confirm(`Delete pattern "${name}"?`)) {
+        await deletePattern(name);
+        setStatus(`Deleted: ${name}`);
+      }
     };
 
     document.getElementById('loadReplay').onclick = () => {
@@ -376,7 +423,9 @@
     };
 
     // ==================== EXPORT / IMPORT ====================
-    document.getElementById('export').onclick = () => {
+    document.getElementById('export').onclick = async () => {
+      // Fetch latest patterns from server
+      await loadPatterns();
       const data = JSON.stringify({ patterns: savedPatterns, todos }, null, 2);
       const blob = new Blob([data], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
@@ -391,23 +440,24 @@
       document.getElementById('import').click();
     };
 
-    document.getElementById('import').onchange = (e) => {
+    document.getElementById('import').onchange = async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       
       const reader = new FileReader();
-      reader.onload = (evt) => {
+      reader.onload = async (evt) => {
         try {
           const data = JSON.parse(evt.target.result);
           if (data.patterns) {
-            savedPatterns = data.patterns;
-            localStorage.setItem('patterns', JSON.stringify(savedPatterns));
-            renderPatterns();
+            // Upload all patterns to backend
+            for (const p of data.patterns) {
+              await savePattern(p.name, p.pattern, p.hotkey || '');
+            }
           }
           if (data.todos) {
             todos = data.todos;
             renderTodos();
-            saveTodos();
+            await saveTodos();
           }
           setStatus('Imported successfully');
         } catch (err) {
@@ -576,8 +626,12 @@
 
     // ==================== INIT ====================
     loadTodos();
-    renderPatterns();
+    loadPatterns(); // Load from backend instead of localStorage
     setStatus('Ready to flow.');
+  </script>
+</body>
+</html>
+```
   </script>
 </body>
 </html>
